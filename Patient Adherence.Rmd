@@ -1,0 +1,576 @@
+---
+title: "Individual Project 2"
+author: "Chrystalla Kofterou, ck2981"
+output: html_document
+---
+
+report.name <- "Patient Adherence Report 2020"
+adherence.csv <- "adherence.csv"
+measurements.csv <- "baseline measurements.csv"
+ending.date = "2020-01-01"
+
+
+
+
+the.year <- lubridate::year(ending.date)
+out.path <- sprintf("../Patients/Patient Reports/%s", the.year)
+print(out.path)
+dir.create(path = out.path, showWarnings = F, recursive = T)
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+```
+
+```{r seed}
+set.seed(354)
+
+```
+
+```{r libraries}
+library(data.table)
+library(DT)
+library(dplyr)
+library(Hmisc)
+library(rmarkdown)
+
+```
+
+```{r constants, results='hide'}
+
+
+```
+
+```{r functions, results='hide'}
+
+```
+
+```{r load_data, results='hide'}
+
+
+adherence = fread(input = params$adherence)
+measurements = fread(input = params$baseline.measurements)
+
+
+
+
+```
+
+```{r explore_data, eval = FALSE, results='hide'}
+glimpse(adherence)
+str(adherence)
+summary(adherence)
+
+glimpse(measurements)
+str(measurements)
+
+glimpse(patients)
+
+
+
+```
+
+
+```{r clean_data, results='hide'}
+describe(adherence) #no missing values or different data input i.e. female, f, etc.
+
+
+adherence[id == '0ePbkNWa1XzPbLTr']
+describe(measurements) #no missing values 
+```
+
+# Instructions {.tabset}
+
+## Overview
+
+Your new client is a health insurance company.  After a lengthy review of their business, the insurance company has decided to prioritize improvements in medication adherence.  For our initial work, we will focus on patients with heart disease and how well they take their medications.
+
+Your team has received some modest training from a physician.  Here are the basic facts you need to know.  Heart disease is one of the most pervasive health problems, especially for older patients.  The initial diagnosis typically occurs too late.  Most patients only become aware that they have heart disease after experiencing an acute episode.  This can be limited to moderate symptoms, which might be treated by either medications or a light procedure.  In more severe cases, the patient might suffer a major event such as a myocardial infarction (heart attack) or need a significant surgical operation.  Whether minor or major, these events often include a hospitalization.  After the initial diagnosis, patients are typically prescribed a range of medications.  Three primary therapies include ACE inhibitors, beta blockers, and statins.
+
+The insurance company has helpfully compiled data on a large number of patients.  They have included a number of important clinical factors about their baseline conditions.  Then, starting from the time of their initial diagnoses of heart disease, the patients were tracked based upon which medications were filled at the pharmacy.  The medication records are presented in the form of panel data.  A single patient's records are linked by a unique identifier.  The time measurements represent the number of days since baseline.  Prescriptions are typically filled for 30 or 90 days of medications.  For this study, you may assume that the patients qualified for our study and reasonably could have been expected to be prescribed all of the medicines we are tracking.
+
+In this project, you will develop an approach to working with the information.  The client company has provided a list of questions they would like to address.  In addition to building the report, our team would also like you to present recommendations on how to improve upon the infrastructure.  We also want you to identify opportunities for the client to make use of the information you're working with in novel ways.
+
+This project is divided into 4 parts:
+
+* **Part 1:**  Summarizing the data.
+
+* **Part 2:**  Answering specific questions about medication adherence.
+
+* **Part 3:**  Generalizing and automating the reporting infrastructure for use beyond the current version.
+
+* **Part 4:**  Identifying opportunities.
+
+Please click on the other tabs for additional information.
+
+## Part 1:  Summary {.tabset}
+
+How would you summarize the data?  For each table, write 2-4 sentences with relevant information.  Briefly describe what is measured in the data and provide a summary of the information.  You can show a table or graphic, but keep things short.
+
+This part of the report will be directed to your internal team at the consulting company.  It is intended to document the sources of information that were used in the project.  It will also describe the data in less technical terms to team members who are not data scientists.  If another member of the team joins the project later, they will rely on your descriptions to gain familiarity with the data.  To that end, we recommend providing some instructions that will help other consultants use the information more effectively.
+
+
+Click on the tabs below for further instructions.
+
+### Baseline Information {.tabset}
+
+This table shows patients' data at the time of their first visit. The id column stores the individual unique identifier for every patient. The age and region columns show the patients' age and region. The diabetes column has a value of 0 when a patient is not diagnosed with dieabetes, and a value of 1 when a patient has diabetes. The baseline.condition divides patients into "major heart attack or operation" and "moderate symptoms or light procedure". This table shows significant information for each customer allowing us to use demogrphics and condition to gather insights for diabetes. Overall, `r num_patients` patients are on record with an average age of `r mean_age`.
+`r percentage_gender` out of all patients are male while `r percentage_condition` of all patients have had a major heart attack or operation. Finally, `r percentage_diabetes` have diabetes.
+
+```{r baseline}
+
+describe(measurements)
+measurements
+
+num_patients = measurements[, .N,]
+mean_age = measurements[, mean(age),]
+percentage_gender = measurements[, mean(sex == 'Male')]
+percentage_condition = measurements[,mean(baseline.condition == 'major heart attack or operation')]
+percentage_diabetes = measurements[, mean(diabetes == 1)]
+
+```
+
+
+### Adherence {.tabset}
+Adherence shows a new record for each new patient visit. Specifically, t1 is measured in days and represents the number of days since the patients' initial diagnosis. t2 shows the ending day of a patient's initial diagnosis where drugs were administered. Each new intervention period adds a new row for a patient assigning t1 the same value assigned to t2 indicating the first day of the new period. Columns ace, bb and statin are all medications administered to patients to treat diabetes. A value of 0 indicates the patient has not receievd the medication and a value of 1 indicates the patient has been taking the medication for a period of t2-t1. 
+
+
+```{r Adherence}
+describe(adherence)
+
+
+```
+
+
+
+## Part 2:  Specific Questions {.tabset}
+
+In addition to your summary, our team has identified specific questions of interest.  Please provide these answers in output that is easy to read (e.g. tables).
+
+This part of the report will be directed to medical case management teams throughout the client's company.  The idea is to give them the useful information they need to act on the specific questions they posed.  Plan your communication accordingly.
+
+
+**Notes**:  Using data.table, most of these calculations can be solved in a moderate number of steps.  Many of the questions may require information from multiple tables.  Use the **merge** function to combine tables as needed.  HTML-friendly tables can be constructed using the **datatable** function in the **DT** package.
+
+These questions were carefully crafted based upon the client's needs.  It is important to answer them based on what is stated.  To that end, please **read each question closely** and answer it accordingly.
+
+The questions are listed in the tabs below.
+
+
+### Q1 {.tabset}
+
+What was the median length of followup?  What percentage of the patients had at least 1 year of records?
+
+The median length of followup is `r md` and the percentage of patients with at least 1 year of records is `r pct.oneyear.followup`
+
+```{r q1}
+
+median.followup = adherence[, max(t2) - min(t1), by=id]
+md = median(median.followup$V1)
+md
+
+pct.oneyear.followup = 100*(median.followup [V1 >= 365, .N])/nrow(median.followup)
+pct.oneyear.followup
+
+```
+
+
+### Q2
+
+For patients with at least 1 year of follow-up, their **one-year adherence** to a medication is the proportion of days in the first year after diagnosis during which the medication was possessed.  For each medication, what was the average one-year adherence for the population?  Use only the patients with at least 1 year of follow-up records.
+
+```{r q2}
+
+adherence[,oneyear_followup := (t2 >= 365)]
+
+z = c(unique(median.followup [V1 >= 365, id]))
+
+adherence[,max.value := ifelse(t2 < 365, t2, 365), id]
+
+pct_adherence = adherence[id %in% z & t1< 365,.("statin one year adherence" = sum((max.value-t1) * statin),
+                                "ace one year adherence" = sum((max.value-t1) * ace),
+                                "bb one year adherence" = sum((max.value-t1) * bb)),id][,lapply(.SD, mean)]
+
+
+100*(pct_adherence/365)
+
+
+
+
+
+
+```
+
+### Q3
+
+How many medications are the patients taking?  For patients with at least one year of follow-up, use their records during the first year after the initial diagnosis.  Calculate the overall percentage distribution of the days that the patients are taking 0, 1, 2, and all 3 medications.
+
+```{r q3}
+
+adherence[id %in% z & t1 <365, .('pct_no_meds' = (mean( ace == 0 & bb == 0 & statin ==0)) *100, 
+          'pct_1_med' = (mean((ace == 1 & bb ==0 & statin == 0) | (ace == 0 & bb ==1 & statin == 0) | (ace == 0 & bb ==0 & statin == 1) ) )*100,
+          'pct_2_meds' = (mean((ace == 1 & bb == 1 & statin == 0) | (ace == 1 & bb ==0 & statin == 1) | (ace == 0 & bb ==1 & statin == 1) ) )*100,
+          'pct_3_meds' = (mean((ace == 1 & bb == 1 & statin == 1))*100))]
+
+
+```
+
+### Q4 {.tabset}
+
+What is the impact of age, sex, region, diabetes, and baseline condition on the one-year adherence to each medication?  Use only the patients with at least 1 year of follow-up records.  Fit separate linear regression models for each medicine.  Then briefly comment on the results.
+
+```{r one.year.adherence.model.dat}
+patients = merge(adherence, measurements, by = 'id')
+
+
+x =patients[id %in% z & t1< 365,.("statin.possesiondays" = sum((max.value-t1) * statin),"ace.possesiondays" = sum((max.value-t1) * ace),
+                                  "bb.possesiondays" = sum((max.value-t1) * bb)),id]
+
+adh_patients = merge(patients, x, by = "id")
+
+
+
+
+                          
+                               
+                                
+
+
+```
+
+#### ACE Inhibitors
+We observe a small negative correltation between ace one-year adherence and age, baseline condition of moderate symptoms, and sex. 
+
+```{r q4_ace}
+adh_patients[, ace.year.adherence := ace.possesiondays/365, ]
+lm(formula = ace.year.adherence ~ age + sex + region + diabetes + baseline.condition, data = adh_patients)
+
+
+```
+
+#### Beta Blockers
+
+Again, we observe a negative impact of age, moderate symptoms, sexMales and South region. Meanwhile, positive impact occurs in northeast and West regions and diabetes.
+```{r q4_bb}
+
+adh_patients[,bb.year.adherence := bb.possesiondays/365, ]
+lm(formula = bb.year.adherence ~ age + sex + region + diabetes + baseline.condition, data = adh_patients)
+
+```
+
+#### Statins
+
+The results are same as the prior medicines with different magnitutdes.
+```{r q4_statin}
+
+adh_patients[, statin.year.adherence := statin.possesiondays/365, id ]
+lm(formula = statin.year.adherence ~ age + sex + region + diabetes + baseline.condition, data = adh_patients)
+
+
+
+```
+
+
+### Q5
+
+For each medicine, what percentage of the patients filled a prescription in the first two weeks after their initial diagnoses?
+
+```{r q5}
+
+
+adherence[t1<15, .(pct_meds_2weeks.ace = mean(ace == 1), pct_meds_2weeks.bb = mean(bb == 1), pct_meds_2weeks.statin = mean(statin == 1)),]
+
+
+```
+
+### Q6 {.tabset}
+
+Now let's compare those who filled a prescription for a statin in the first two weeks after diagnosis to those who did not.  Do these two groups have different baseline covariates?  Compare the groups based on their ages.  Then compare the distribution of baseline conditions in the two groups. For continuous variables, compare their means using a t-test.  For the categorical variables, compare their distributions using a chi-squared test.  
+
+#### Age
+
+```{r q6_age}
+
+statin.id = c(unique(patients[ t1< 15 & statin == 1, id,]))
+
+statin.reg = patients[, GroupStatin := ifelse(id %in% statin.id, 1, 0)]
+
+t.test(age ~ GroupStatin, data = statin.reg)
+t_test
+
+
+```
+
+#### Baseline Conditions
+
+```{r q6_baseline.condition}
+
+chisq.test(statin.reg$baseline.condition, statin.reg$Group)
+
+
+```
+
+### Q7 {.tabset}
+
+How do the variables of age, sex, region, diabetes, and baseline condition impact the likelihood of initiating a medication within 14 days?  For each medicine, fit a logistic regression model and comment on the results.
+
+
+```{r q7}
+
+ace.id = c(unique(patients[ t1< 15 & ace == 1, id,]))
+ace.reg = patients[, GroupAce := ifelse(id %in% ace.id, 1, 0)]
+
+bb.id = c(unique(patients[ t1< 15 & bb == 1, id,]))
+bb.reg = patients[, GroupBB := ifelse(id %in% bb.id, 1, 0)]
+
+
+```
+
+#### ACE Inhibitors
+None of the covariates has a significant impact.
+```{r q7_ace}
+
+lm(formula = GroupAce ~ age + sex + region + diabetes + baseline.condition, data = ace.reg)
+
+```
+
+#### Beta Blockers
+None of the covariates has a significant impact.
+
+
+```{r q7_bb}
+
+lm(formula = GroupBB ~ age + sex + region + diabetes + baseline.condition, data = bb.reg)
+
+
+```
+
+#### Statins
+None of the covariates has a significant impact.
+
+```{r q7_statins}
+
+lm(formula = GroupStatin ~ age + sex + region + diabetes + baseline.condition, data = statin.reg)
+
+
+```
+
+### Q8 {.tabset}
+
+For those who did fill their prescriptions within 2 weeks, how long does it typically take to fill that first prescription after the initial diagnosis?  For each medicine, provide the mean, median, and standard deviation in units of days.
+
+```{r q8}
+
+cross.sectional.data <- function(dat, medicine, t1.name, t2.name, id.name) {
+    require(data.table)
+    setDT(dat)
+    setorderv(x = dat, cols = c(id.name, t1.name))
+    cs.dat = dat[get(medicine) == 1 & t1 < 14][, .SD[1], by = id.name]
+    return(cs.dat)
+}
+
+```
+
+#### ACE Inhibitors
+
+```{r q8_ace}
+ace_prescription = cross.sectional.data(adherence, medicine = 'ace', t1.name = 't1', t2.name = 't2', id.name = 'id')
+
+mean(ace_prescription$t1)
+median(ace_prescription$t1)
+sd(ace_prescription$t1)
+
+
+```
+
+
+#### Beta Blockers
+
+```{r q8_bb}
+
+bb_prescription = cross.sectional.data(adherence, medicine = 'bb', t1.name = 't1', t2.name = 't2', id.name = 'id')
+
+mean(bb_prescription$t1)
+median(bb_prescription$t1)
+sd(bb_prescription$t1)
+
+```
+
+
+#### Statins
+
+```{r q8_statin}
+
+statin_prescription = cross.sectional.data(adherence, medicine = 'statin', t1.name = 't1', t2.name = 't2', id.name = 'id')
+
+mean(statin_prescription$t1)
+median(statin_prescription$t1)
+sd(statin_prescription$t1)
+
+
+```
+
+### Q9 {.tabset}
+
+How does filling a prescription in the first two weeks impact adherence?  If we want to see that a medicine is working, we need to start the observation after the patient has had a chance to fill the prescription.  To answer this question, we will follow a number of steps:
+
+1.  Identify which patients filled a prescription in the first two weeks.
+
+2.  Then, for each patient with at least 379 days of followup, measure the one-year adherence rate (see Question 2) **starting at two weeks after the initial diagnosis**.  This interval will begin at day 14 and last for 365 days.
+
+3.  Fit a linear regression model of this one-year adherence including the baseline covariates (age, sex, region, diabetes, baseline condition) and an indicator of whether this patient filled a prescription for the medicine in the first two weeks.
+
+Perform this analysis for each medicine and comment on the results.
+
+```{r q9}
+
+patients[,min.value := ifelse(t1<14 & t2>14, 14, t1), id]
+
+two.weeks.patients = c(unique(patients[t1 <= 14 & GroupAce == 1 | GroupBB == 1 | GroupStatin == 1 ,.SD,][t1 >=379,id,])) #patients with filled prescriptions in 2 weeks with at least 379 days of followup
+
+
+
+pct_adherence14daysup = patients[id %in% two.weeks.patients & t1 > 14 & t2<400,.('statin.one.year.adherence' = 
+                                                                                                           (sum((max.value-min.value) * statin)/365),      
+                                                                    'ace.one.year.adherence'=(sum((max.value-min.value) * ace)/365),
+                                                                                   'bb.one.year.adherence' = (sum((max.value-min.value) * bb)/365), age, sex, diabetes,
+                                                                    region, baseline.condition, GroupAce, GroupBB, GroupStatin),id]
+
+
+
+
+
+```
+
+#### ACE Inhibitors
+
+```{r q9_ace}
+
+lm(formula = ace.one.year.adherence ~ age + sex + region + diabetes + baseline.condition + GroupAce, data = pct_adherence14daysup )
+```
+
+#### Beta Blockers
+
+```{r q9_bb}
+
+lm(formula = bb.one.year.adherence ~ age + sex + region + diabetes + baseline.condition + GroupBB, data = pct_adherence14daysup )
+
+
+
+```
+
+#### Statins
+
+```{r q9_statin}
+
+lm(formula = statin.one.year.adherence ~ age + sex + region + diabetes + baseline.condition + GroupStatin, data = pct_adherence14daysup )
+
+
+
+```
+
+
+### Q10 {.tabset}
+
+Once a patient starts a medication, how long do they continuously have a filled prescription?  For each patient who filled a medication, start with the first filled prescription and count the duration of days until a gap occurs or follow-up ends.  Then provide the mean, median, and standard deviation for these durations.  Do this separately for each medicine.
+
+```{r q10}
+
+dt = adherence[,if(1 %in% statin) .SD[1:min(which(statin==1))],by=id][, .('statin.filled.prescription' = statin * (t2-t1)), id]
+
+
+```
+
+#### ACE Inhibitors
+
+```{r q10_ace}
+
+at = adherence[,if(1 %in% ace) .SD[1:min(which(ace==1))],by=id][, .('ace.filled.prescription' = ace * (t2-t1)), id]
+at[ace.filled.prescription >0,.('mean' = mean(ace.filled.prescription), 'median' = median(ace.filled.prescription), 'standard.deviation' = sd(ace.filled.prescription))]
+
+```
+
+#### Beta Blockers
+```{r q10_bb}
+
+bt = adherence[,if(1 %in% bb) .SD[1:min(which(bb==1))],by=id][, .('bb.filled.prescription' = bb * (t2-t1)), id]
+
+bt[bb.filled.prescription >0,.('mean' = mean(bb.filled.prescription), 'median' = median(bb.filled.prescription), 'standard.deviation' = sd(bb.filled.prescription))]
+
+
+```
+
+#### Statins
+```{r q10_statin}
+
+st = adherence[,if(1 %in% statin) .SD[1:min(which(statin==1))],by=id][, .('statin.filled.prescription' = statin * (t2-t1)), id]
+
+st[statin.filled.prescription >0,.('mean' = mean(statin.filled.prescription), 'median' = median(statin.filled.prescription), 'standard.deviation' = sd(statin.filled.prescription))]
+
+
+```
+
+
+
+
+## Part 3:  Generalization {.tabset}
+
+This part of the report will be directed internally to your team's engagement manager.  The idea is to present these approaches to your team.  The work will then be conveyed to the client's technical team and middle managers who are working closely with you on the project.  Plan your communication accordingly.
+
+
+### Q1 
+
+Did you see any problems with the data set?  If so, whom would you report them to, and what would you do to address them?  What would be different about the next version of the data?
+
+One of the problems I noticed was that the data set has a higher proportion of patients with a minor or light procedure medical condition compared to major incidents. In fact, the patients with the minor condition are double the patients who experienced a major incidient. This causes a problem in the modeling of the data as it skews towards people with moderate symptoms. A more balanced dataset would have approximately 50% from each group. Also, there is no way of knowing through the data how the medications impact the patients' health and whether they help towards the treatment. Thus, I'd require additional data such as blood pressure measurements at every followup, weight, and a monthly blood analysis. Finally, I'd like to have on record whether certain patients have passed away as there is not way of knowing through the existing data on hand. I'd report these to my team's manager to ensure the unbalanced dataset does not cause any problems with our findings because they are mostly based on people with minor symptoms. Also, i'd explain why we need the additional data to assess whether meds are indeed helping without causing any severe side-effects. Considering that we aim to prevent major symptoms from occuring, we would want a balanced sample set to ensure the credibility of our results and relevant data to evaluate the performance of the treatemtns. The next version of the data would preferably have a more balanced distribution, and additional related data reqarding patients' treatment. 
+
+### Q2
+
+If the organization wants to monitor this kind of information over time, what would they need to provide, and at what frequency?
+
+They should keep adding new patient records on the adherence file to have a consolidated dataset with all relevant information as explained earlier. Weights and blood pressure measurements should be taken at every followup while blood analysis once a month. 
+
+
+
+
+### Q3
+
+How would you build on the reporting capabilities that you have created?  What would you design next?
+
+Assuming the organization provides us with the additional information, I'd then be able to explore deeper and identify if correlations exist between two medications being taken together i.e. ace and bb have a positive impact on patients' health and can be used to prevent heart attacks. I'd then design a dashboard for the organizaiton to use to identify potential correlations between meds and adherence to allow them make decisions on the spot. 
+
+## Part 4:  Opportunities {.tabset}
+
+This part of the report will be directed externally to your client's senior leadership.  Your work will help to determine the future direction of the project and the company's contract with this client.  Plan your communication accordingly.
+
+### Q1
+
+What are some opportunities to learn valuable information and inform strategic decisions?  List a number of questions that you might explore.
+
+How do medication combinations i.e. ace taken with statin, affect patients' health?
+Which region has the most patients with heart attacks? Is there any potential reason why? Might be due to poverty or lifestyle
+Are there additional factors that help treat heart disease apart from ace, bb or statin? Perhaps design customized diet and exercise plans for each patient based on the medications they are taking per period
+What is the correlation of having diabetes and experiencing a heart attack? Do diabetes medications help prevent it?
+
+
+### Q2
+
+What kind of interventions would you build to help improve medication adherence?  Which populations would you work with?  How would you help them?
+
+I'd synchronize medications based on patients prescriptions and split my sample, one group has synchronized medication and one does not. Using followup data, I would coordinate all medication refills to be picked up by the patients once a month. Then, I would the compare the medication adherence of the group that has synchronized medications to the group that does not and assess whether the intervention has a positive impact on adherence. My sample groups will consist of a balanced random group of all patients on record. 
+
+### Q3
+
+How would you approach other decisionmakers within the organization to assess their priorities and help them better utilize the available information?
+
+I would first explain the importance of the research for the organization to motivate them and bring them onboard. I expect some opposition from them as my findings might compete with their decisions, proving them wrong and causing them to change direction. If this occurs, I'd be preapred to listen carefully about their concerns and ensure them that even though some of their past decisions might not work, their future decisions and strategies will be data driven and aligned with the current situation. Then, through our communication I will discuss the data with them and ask them questions about their decision making process to understand the variables they find the most important. Depending on the variables they use and on my findings, I would make suggestions on which variables must have more weights and which correlations have the greatest impact on patients. I believe this approach will help them understand the value of the research and how it can make their decision making process more efficient with a higher success rate. 
+
+
+### Q4
+
+**Video Submission**:  Make a 2-minute pitch to the client with a proposal for the next phase of work.  Include in your request a budget, a time frame, and staffing levels.  Explain why this proposal would be valuable for the client and worth the investment in your consulting services.  Please submit this answer as a short video recording. You may use any video recording program you feel comfortable with. The only requirements are that you are visible and audible in the video.  You may also submit a file of slides if that is part of your pitch.
+
+
